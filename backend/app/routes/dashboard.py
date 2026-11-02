@@ -5,6 +5,7 @@ from app.controllers import dashboard as controller
 from app.database.connection import get_db
 from app.models.utilisateur import Utilisateur
 from app.schemas.dashboard import DashboardStatistics
+from app.schemas.echeance import EcheancesRead
 from app.schemas.transformateur import PrioriteItem
 from app.services.preventive_service import NiveauPriorite
 from app.utils.dependencies import require_admin_or_superviseur, require_authenticated
@@ -29,3 +30,13 @@ def get_priorities(
     _: Utilisateur = Depends(require_authenticated),
 ) -> list[PrioriteItem]:
     return controller.get_priorities(db, niveau, inclure_normal, limit)
+
+
+@router.get("/inspections-a-venir", response_model=EcheancesRead)
+def get_inspections_a_venir(
+    limit: int = Query(default=5, ge=1, le=50),
+    db: Session = Depends(get_db),
+    _: Utilisateur = Depends(require_authenticated),
+) -> EcheancesRead:
+    """Prochaines échéances d'inspection des postes actifs (retards en premier)."""
+    return controller.get_prochaines_inspections(db, limit)
