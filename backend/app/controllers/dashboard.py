@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.controllers import transformateur as transformateur_controller
-from app.schemas.dashboard import DashboardStatistics
+from app.schemas.dashboard import Activite, DashboardStatistics
 from app.schemas.echeance import EcheancesRead
 from app.schemas.transformateur import PrioriteItem
 from app.services import dashboard_service, echeance_service
@@ -30,3 +30,7 @@ def get_priorities(
 
 def get_prochaines_inspections(db: Session, limit: int) -> EcheancesRead:
     return echeance_service.prochaines_inspections(db, limit)
+
+
+def get_activites(db: Session, limit: int) -> list[Activite]:
+    return dashboard_service.get_activites(db, limit)
