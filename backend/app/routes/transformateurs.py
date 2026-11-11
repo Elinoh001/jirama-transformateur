@@ -10,11 +10,13 @@ from app.models.utilisateur import Utilisateur
 from app.schemas.transformateur import (
     HistoriqueRead,
     PrioriteItem,
+    ProcheItem,
     TransformateurCreate,
     TransformateurRead,
     TransformateurUpdate,
 )
 from app.services.preventive_service import NiveauPriorite
+from app.services.statut_service import StatutOperationnel
 from app.utils.dependencies import require_admin, require_authenticated
 
 router = APIRouter(prefix="/transformateurs", tags=["Transformateurs"])
@@ -22,15 +24,19 @@ router = APIRouter(prefix="/transformateurs", tags=["Transformateurs"])
 
 @router.get("", response_model=list[TransformateurRead])
 def list_transformateurs(
-    search: str | None = Query(default=None, description="Recherche sur référence ou nom"),
-    etat: EtatTransformateur | None = Query(default=None),
+    search: str | None = Query(default=None, description="Recherche sur référence, nom ou secteur"),
+    etat: EtatTransformateur | None = Query(default=None, description="État technique"),
     actif: bool | None = Query(default=None),
+    secteur: str | None = Query(default=None, description="Quartier / secteur d'Antsirabe"),
+    statut_operationnel: StatutOperationnel | None = Query(
+        default=None, description="EN_SERVICE, EN_SURCHARGE, EN_MAINTENANCE ou EN_PANNE"
+    ),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=500, ge=1, le=1000),
     db: Session = Depends(get_db),
     _: Utilisateur = Depends(require_authenticated),
 ) -> list[TransformateurRead]:
-    return controller.list_transformateurs(db, search, etat, actif, skip, limit)
+    return controller.list_transformateurs(db, search, etat, actif, secteur, statut_operationnel, skip, limit)
 
 
 @router.post("", response_model=TransformateurRead, status_code=status.HTTP_201_CREATED)
@@ -42,8 +48,14 @@ def create_transformateur(
     return controller.create_transformateur(db, data)
 
 
-# IMPORTANT : cette route doit rester AVANT "/{transformateur_id}",
-# sinon FastAPI essaierait de lire "priorites" comme un identifiant entier.
+# IMPORTANT : toutes les routes à chemin fixe (secteurs, priorites, proches, geojson) doivent rester
+# AVANT "/{transformateur_id}", sinon FastAPI essaierait de lire ce mot comme un identifiant entier.
+@router.get("/secteurs", response_model=list[str])
+def list_secteurs(_: Utilisateur = Depends(require_authenticated)) -> list[str]:
+    """Liste des secteurs/quartiers d'Antsirabe acceptés (alimente les formulaires et les filtres)."""
+    return controller.list_secteurs()
+
+
 @router.get("/priorites", response_model=list[PrioriteItem])
 def list_priorites(
     niveau: NiveauPriorite | None = Query(default=None, description="Filtrer par niveau"),
@@ -52,6 +64,32 @@ def list_priorites(
     _: Utilisateur = Depends(require_authenticated),
 ) -> list[PrioriteItem]:
     return controller.list_priorites(db, niveau, inclure_inactifs)
+
+
+@router.get("/proches", response_model=list[ProcheItem])
+def list_proches(
+    latitude: float = Query(ge=-90, le=90),
+    longitude: float = Query(ge=-180, le=180),
+    rayon_m: float = Query(default=1000, gt=0, le=50000, description="Rayon de recherche en mètres"),
+    limit: int = Query(default=20, ge=1, le=100),
+    inclure_inactifs: bool = Query(default=False),
+    db: Session = Depends(get_db),
+    _: Utilisateur = Depends(require_authenticated),
+) -> list[ProcheItem]:
+    """Recherche spatiale PostGIS : postes dans un rayon autour d'un point, avec la distance en mètres."""
+    return controller.list_proches(db, latitude, longitude, rayon_m, limit, inclure_inactifs)
+
+
+@router.get("/geojson")
+def get_geojson(
+    secteur: str | None = Query(default=None),
+    actif: bool | None = Query(default=None),
+    bbox: str | None = Query(default=None, description="lon_min,lat_min,lon_max,lat_max"),
+    db: Session = Depends(get_db),
+    _: Utilisateur = Depends(require_authenticated),
+) -> dict:
+    """Postes au format GeoJSON (géométries produites par PostGIS), filtrables par secteur ou emprise."""
+    return controller.geojson(db, secteur, actif, bbox)
 
 
 @router.get("/{transformateur_id}", response_model=TransformateurRead)

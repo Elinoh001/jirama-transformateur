@@ -6,6 +6,8 @@ from app.routes import (
     health,
     inspections,
     interventions,
+    pannes,
+    releves_charge,
     transformateurs,
     utilisateurs,
 )
@@ -17,4 +19,6 @@ api_router.include_router(utilisateurs.router)
 api_router.include_router(transformateurs.router)
 api_router.include_router(inspections.router)
 api_router.include_router(interventions.router)
+api_router.include_router(pannes.router)
+api_router.include_router(releves_charge.router)
 api_router.include_router(dashboard.router)

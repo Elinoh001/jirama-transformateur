@@ -1,12 +1,11 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
-import { Search } from 'lucide-vue-next'
+import { Search, SlidersHorizontal, MapPin } from 'lucide-vue-next'
 import { useRouter } from 'vue-router'
 
 import TransformateurMap from '@/components/map/TransformateurMap.vue'
 import { useTransformateurStore } from '@/stores/transformateurStore'
 import { PRIORITE_LABELS, STATUT_OPERATIONNEL_LABELS } from '@/utils/format'
-import { cardClass, inputClass } from '@/utils/ui'
 
 const router = useRouter()
 const store = useTransformateurStore()
@@ -17,6 +16,7 @@ const secteur = ref('')
 const statut = ref('')
 const niveau = ref('')
 const afficherInactifs = ref(false)
+const showFilters = ref(false)
 
 const markers = computed(() => {
   const q = recherche.value.trim().toLowerCase()
@@ -37,67 +37,96 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex h-full flex-col gap-4">
-    <div :class="[cardClass, 'flex flex-wrap items-end gap-4 p-4']">
-      <div class="min-w-[200px] flex-1">
-        <label for="m-recherche" class="mb-1 block text-xs font-medium text-slate-500">Recherche</label>
-        <div class="relative">
-          <Search class="pointer-events-none absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+  <div class="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-slate-100">
+    
+    <!-- Barre de recherche et filtres flottants (Top) -->
+    <div class="absolute top-4 left-4 z-[1000] flex w-full max-w-xl flex-col gap-2">
+      <div class="flex items-center gap-2">
+        <!-- Barre de recherche -->
+        <div class="relative flex-1 shadow-md">
+          <Search class="pointer-events-none absolute left-3 top-2.5 h-5 w-5 text-slate-400" />
           <input
-            id="m-recherche"
             v-model="recherche"
-            placeholder="Référence, nom ou quartier"
-            :class="[inputClass, 'pl-9']"
+            placeholder="Rechercher sur la carte..."
+            class="w-full rounded-lg border border-slate-200 bg-white py-2 pl-10 pr-4 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
           />
         </div>
-      </div>
-      <div>
-        <label for="m-couleur" class="mb-1 block text-xs font-medium text-slate-500">Couleur selon</label>
-        <select id="m-couleur" v-model="colorBy" :class="[inputClass, 'w-48']">
-          <option value="statut">Statut opérationnel</option>
-          <option value="priorite">Priorité préventive</option>
-        </select>
-      </div>
-      <div>
-        <label for="m-secteur" class="mb-1 block text-xs font-medium text-slate-500">Quartier / secteur</label>
-        <select id="m-secteur" v-model="secteur" :class="[inputClass, 'w-44']">
-          <option value="">Tous</option>
-          <option v-for="s in store.secteurs" :key="s" :value="s">{{ s }}</option>
-        </select>
-      </div>
-      <div>
-        <label for="m-statut" class="mb-1 block text-xs font-medium text-slate-500">Statut</label>
-        <select id="m-statut" v-model="statut" :class="[inputClass, 'w-44']">
-          <option value="">Tous</option>
-          <option v-for="(label, value) in STATUT_OPERATIONNEL_LABELS" :key="value" :value="value">
-            {{ label }}
-          </option>
-        </select>
-      </div>
-      <div>
-        <label for="m-niveau" class="mb-1 block text-xs font-medium text-slate-500">Priorité</label>
-        <select id="m-niveau" v-model="niveau" :class="[inputClass, 'w-40']">
-          <option value="">Toutes</option>
-          <option v-for="(label, value) in PRIORITE_LABELS" :key="value" :value="value">{{ label }}</option>
-        </select>
+        
+        <!-- Bouton Filtres -->
+        <button 
+          @click="showFilters = !showFilters"
+          class="flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-4 shadow-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          :class="{ 'bg-blue-50 text-blue-600 border-blue-200': showFilters }"
+        >
+          <SlidersHorizontal class="h-4 w-4" />
+          Filtres
+        </button>
       </div>
 
-      <label class="mb-2 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
-        <input v-model="afficherInactifs" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
-        Afficher les inactifs
-      </label>
-
-      <span class="mb-2 ml-auto text-sm font-medium text-navy-900">{{ markers.length }} affiché(s)</span>
+      <!-- Panneau de filtres (Caché par défaut) -->
+      <div v-if="showFilters" class="rounded-xl bg-white p-4 shadow-xl border border-slate-100 flex flex-col gap-3">
+        <div class="flex justify-between items-center mb-2">
+          <span class="text-sm font-semibold text-slate-800">Filtres avancés</span>
+          <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full">{{ markers.length }} résultat(s)</span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500">Couleur des marqueurs</label>
+            <select v-model="colorBy" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+              <option value="statut">Statut opérationnel</option>
+              <option value="priorite">Priorité préventive</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500">Secteur</label>
+            <select v-model="secteur" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+              <option value="">Tous</option>
+              <option v-for="s in store.secteurs" :key="s" :value="s">{{ s }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500">Statut</label>
+            <select v-model="statut" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+              <option value="">Tous</option>
+              <option v-for="(label, value) in STATUT_OPERATIONNEL_LABELS" :key="value" :value="value">{{ label }}</option>
+            </select>
+          </div>
+          <div>
+            <label class="mb-1 block text-xs font-medium text-slate-500">Priorité</label>
+            <select v-model="niveau" class="w-full rounded-md border border-slate-300 px-2 py-1.5 text-sm outline-none focus:border-blue-500">
+              <option value="">Toutes</option>
+              <option v-for="(label, value) in PRIORITE_LABELS" :key="value" :value="value">{{ label }}</option>
+            </select>
+          </div>
+        </div>
+        
+        <label class="mt-2 flex cursor-pointer items-center gap-2 text-sm text-slate-700">
+          <input v-model="afficherInactifs" type="checkbox" class="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
+          Afficher les transformateurs inactifs
+        </label>
+      </div>
     </div>
 
-    <p v-if="store.error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{{ store.error }}</p>
+    <!-- Message d'erreur -->
+    <p v-if="store.error" class="absolute top-20 left-1/2 z-[1000] -translate-x-1/2 rounded-lg bg-red-50 px-4 py-2 text-sm font-medium text-red-700 shadow-md">
+      {{ store.error }}
+    </p>
 
-    <div :class="[cardClass, 'min-h-[420px] flex-1 overflow-hidden p-1']">
-      <TransformateurMap
-        :markers="markers"
-        :color-by="colorBy"
-        @open="(id) => router.push(`/transformateurs/${id}`)"
-      />
-    </div>
+    <!-- Composant Carte (Plein écran) -->
+    <TransformateurMap
+      :markers="markers"
+      :color-by="colorBy"
+      @open="(id) => router.push(`/transformateurs/${id}`)"
+    />
   </div>
 </template>
+
+<style scoped>
+/* Assure que la carte prend bien tout l'espace disponible */
+:deep(.leaflet-container) {
+  height: 100%;
+  width: 100%;
+  z-index: 10;
+}
+</style>

@@ -1,4 +1,6 @@
-from sqlalchemy import select
+from datetime import date
+
+from sqlalchemy import and_, not_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.models.intervention import Intervention, StatutIntervention
@@ -18,6 +20,7 @@ def list_interventions(
     statut: StatutIntervention | None = None,
     skip: int = 0,
     limit: int = 500,
+    en_retard: bool | None = None,
 ) -> list[Intervention]:
     stmt = (
         select(Intervention)
@@ -28,6 +31,15 @@ def list_interventions(
         stmt = stmt.where(Intervention.transformateur_id == transformateur_id)
     if statut is not None:
         stmt = stmt.where(Intervention.statut == statut)
+    # En retard = planifiée dont la date est dépassée (elle n'a pas démarré).
+    retard = and_(
+        Intervention.statut == StatutIntervention.PLANIFIEE,
+        Intervention.date_intervention < date.today(),
+    )
+    if en_retard is True:
+        stmt = stmt.where(retard)
+    elif en_retard is False:
+        stmt = stmt.where(not_(retard))
 
     stmt = stmt.offset(skip).limit(limit)
     return list(db.scalars(stmt).all())

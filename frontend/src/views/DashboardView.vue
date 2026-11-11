@@ -4,6 +4,7 @@ import {
   Activity,
   CalendarClock,
   Check,
+  CheckCircle2,
   ClipboardCheck,
   Eye,
   Flag,
@@ -16,9 +17,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-vue-next'
-import { useRouter } from 'vue-router'
 
-import KpiCard from '@/components/common/KpiCard.vue'
 import StatCard from '@/components/common/StatCard.vue'
 import ActiviteChart from '@/components/dashboard/ActiviteChart.vue'
 import ChargeGauge from '@/components/dashboard/ChargeGauge.vue'
@@ -28,42 +27,66 @@ import ProchainesInspections from '@/components/dashboard/ProchainesInspections.
 import RepartitionChart from '@/components/dashboard/RepartitionChart.vue'
 import SecteursTable from '@/components/dashboard/SecteursTable.vue'
 import StatutsChart from '@/components/dashboard/StatutsChart.vue'
-import TransformateurMap from '@/components/map/TransformateurMap.vue'
 import { useAuthStore } from '@/stores/authStore'
 import { useDashboardStore } from '@/stores/dashboardStore'
-import { useTransformateurStore } from '@/stores/transformateurStore'
 import { formatMontant, formatPourcent } from '@/utils/format'
 
-const router = useRouter()
 const auth = useAuthStore()
 const dashboard = useDashboardStore()
-const transformateurs = useTransformateurStore()
 
 const stats = computed(() => dashboard.statistics)
 
-// Champs ajoutés à l'étape 12 : si le backend n'est pas à jour, on avertit au lieu de planter.
+// Vérification si le backend renvoie bien toutes les nouvelles stats
 const backendAJour = computed(
   () => !!stats.value && !!stats.value.repartition_statuts && Array.isArray(stats.value.repartition_secteurs),
 )
 
 function part(n) {
   const total = stats.value?.total_transformateurs
-  return total ? formatPourcent((n / total) * 100) : '—'
+  return total ? formatPourcent((n / total) * 100) : '0%'
 }
 
-// 4 grandes cartes (total, bon, à surveiller, critiques)
+// Les 4 cartes KPI principales (Design identique à la maquette)
 const kpis = computed(() => {
   const s = stats.value
   if (!s) return []
   return [
-    { label: 'Total transformateurs', value: s.total_transformateurs, subtitle: `${s.transformateurs_actifs} actifs`, icon: Zap, tone: 'blue' },
-    { label: 'En bon état', value: s.transformateurs_bon, subtitle: part(s.transformateurs_bon), icon: ShieldCheck, tone: 'green' },
-    { label: 'À surveiller', value: s.transformateurs_a_surveiller, subtitle: part(s.transformateurs_a_surveiller), icon: Eye, tone: 'amber' },
-    { label: 'Critiques', value: s.transformateurs_critiques, subtitle: part(s.transformateurs_critiques), icon: ShieldAlert, tone: 'red' },
+    { 
+      label: 'Total', 
+      value: s.total_transformateurs, 
+      subtitle: 'Transformateurs', 
+      icon: Zap, 
+      iconColor: 'text-blue-600', 
+      iconBg: 'bg-blue-100' 
+    },
+    { 
+      label: 'Opérationnels', 
+      value: s.transformateurs_bon, 
+      subtitle: `(${part(s.transformateurs_bon)} des actifs)`, 
+      icon: CheckCircle2, 
+      iconColor: 'text-green-600', 
+      iconBg: 'bg-green-100' 
+    },
+    { 
+      label: 'En panne', 
+      value: s.transformateurs_critiques, 
+      subtitle: `(${part(s.transformateurs_critiques)} des actifs)`, 
+      icon: ShieldAlert, 
+      iconColor: 'text-red-600', 
+      iconBg: 'bg-red-100' 
+    },
+    { 
+      label: 'À inspecter', 
+      value: s.transformateurs_a_surveiller, 
+      subtitle: `(${part(s.transformateurs_a_surveiller)} des actifs)`, 
+      icon: Eye, 
+      iconColor: 'text-orange-500', 
+      iconBg: 'bg-orange-100' 
+    },
   ]
 })
 
-// Les 12 autres indicateurs (cahier des charges et PRD)
+// Les indicateurs détaillés (Section secondaire)
 const cartes = computed(() => {
   const s = stats.value
   if (!s) return []
@@ -87,118 +110,145 @@ const cartes = computed(() => {
   ]
 })
 
-const postesActifs = computed(() => transformateurs.items.filter((t) => t.actif))
-
 onMounted(() => {
   dashboard.fetchAll(auth.canViewStatistics)
-  transformateurs.fetchAll()
 })
 </script>
 
 <template>
-  <div class="space-y-6">
-    <header>
-      <h2 class="text-2xl font-bold text-navy-900">Bonjour, {{ auth.fullName }}</h2>
-      <p class="text-sm text-slate-600">Voici un aperçu de l'état de votre réseau de transformateurs.</p>
+  <div class="space-y-6 pb-10">
+    
+    <!-- En-tête avec filtres -->
+    <header class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div>
+        <h2 class="text-2xl font-bold text-slate-800">Tableau de bord</h2>
+        <p class="text-sm text-slate-500">Vue d'ensemble du réseau de distribution</p>
+      </div>
+      
+      <!-- Filtres (Design maquette) -->
+      <div class="flex items-center gap-3">
+        <select class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
+          <option>Antsirabe</option>
+          <option>Antsirabe Centre</option>
+          <option>Antsirabe Nord</option>
+        </select>
+        <div class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700">
+          <CalendarClock class="h-4 w-4 text-slate-400" />
+          <span>03/11/2025</span>
+        </div>
+      </div>
     </header>
 
+    <!-- Erreurs et chargement -->
     <p v-if="dashboard.error" class="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">
       {{ dashboard.error }}
     </p>
-
-    <p v-else-if="dashboard.loading && !stats && dashboard.priorities.length === 0" class="text-sm text-slate-500">
-      Chargement...
+    <p v-else-if="dashboard.loading && !stats" class="text-sm text-slate-500 flex items-center gap-2">
+      <Loader class="h-4 w-4 animate-spin" /> Chargement des données...
     </p>
 
-    <p v-if="stats && !backendAJour" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800">
-      Le backend ne renvoie pas les nouvelles statistiques (statuts, charge, pannes, secteurs).
-      Vérifiez que les fichiers de l'étape 12 sont appliqués, puis redémarrez uvicorn.
+    <p v-if="stats && !backendAJour" class="rounded-lg bg-amber-50 px-4 py-3 text-sm text-amber-800 border border-amber-200">
+      Le backend ne renvoie pas les nouvelles statistiques. Vérifiez que les fichiers de l'étape 12 sont appliqués.
     </p>
 
-    <!-- 4 indicateurs principaux -->
+    <!-- 4 CARTES KPI PRINCIPALES -->
     <section v-if="auth.canViewStatistics && stats" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <KpiCard
-        v-for="k in kpis"
+      <div 
+        v-for="k in kpis" 
         :key="k.label"
-        :label="k.label"
-        :value="k.value"
-        :subtitle="k.subtitle"
-        :icon="k.icon"
-        :tone="k.tone"
-        to="/transformateurs"
-      />
+        class="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div>
+          <p class="text-sm font-medium text-slate-500 mb-1">{{ k.label }}</p>
+          <div class="flex items-baseline gap-2">
+            <span class="text-2xl font-bold text-slate-800">{{ k.value }}</span>
+          </div>
+          <p class="text-xs text-slate-400 mt-1">{{ k.subtitle }}</p>
+        </div>
+        <div :class="[k.iconBg, 'flex h-12 w-12 items-center justify-center rounded-full']">
+          <component :is="k.icon" :class="[k.iconColor, 'h-6 w-6']" />
+        </div>
+      </div>
     </section>
 
-    <p
-      v-else-if="!auth.canViewStatistics"
-      class="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800"
-    >
-      Votre profil (agent) donne accès aux priorités préventives. Les statistiques globales sont réservées
-      aux administrateurs et superviseurs.
+    <p v-else-if="!auth.canViewStatistics" class="rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-800">
+      Votre profil (agent) donne accès aux priorités préventives. Les statistiques globales sont réservées aux administrateurs.
     </p>
 
-    <!-- Carte et prochaines inspections -->
+    <!-- SECTION GRAPHIQUES & INSPECTIONS (Design Maquette) -->
     <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      
+      <!-- Graphique d'évolution (2/3) -->
       <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-navy-900">Localisation des transformateurs</h3>
-          <RouterLink to="/carte" class="text-sm font-medium text-blue-600 hover:underline">Ouvrir la carte →</RouterLink>
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-slate-800">Évolution du réseau</h3>
+          <!-- Légende personnalisée -->
+          <div class="flex items-center gap-4 text-xs font-medium text-slate-600">
+            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-green-500"></div> Opérationnels</div>
+            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-red-500"></div> En panne</div>
+          </div>
         </div>
-        <div class="h-80">
-          <TransformateurMap
-            :markers="postesActifs"
-            @open="(id) => router.push(`/transformateurs/${id}`)"
-          />
+        <div class="h-64">
+          <!-- Si ActiviteChart n'est pas un LineChart, remplacez-le par votre composant Chart.js -->
+          <ActiviteChart v-if="stats?.activite_mensuelle" :activite="stats.activite_mensuelle" />
+          <div v-else class="flex h-full items-center justify-center text-sm text-slate-400">Aucune donnée disponible</div>
         </div>
       </div>
 
+      <!-- Liste des prochaines inspections (1/3) -->
       <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="mb-3 flex items-center justify-between">
-          <h3 class="text-sm font-semibold text-navy-900">Prochaines inspections</h3>
-          <RouterLink to="/inspections" class="text-sm font-medium text-blue-600 hover:underline">Voir tout →</RouterLink>
+        <div class="mb-4 flex items-center justify-between">
+          <h3 class="text-base font-semibold text-slate-800">Prochaines inspections</h3>
+          <RouterLink to="/inspections" class="text-xs font-medium text-blue-600 hover:underline">Voir tout →</RouterLink>
         </div>
         <ProchainesInspections :data="dashboard.upcoming" :loading="dashboard.loading" />
       </div>
     </section>
 
-    <!-- Graphiques (ADMIN et SUPERVISEUR) -->
+    <!-- SECTION SECONDAIRE : Détails, Donut, Charge, Tableaux -->
     <template v-if="auth.canViewStatistics && stats">
+      
       <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- Donut États -->
         <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-sm font-semibold text-navy-900">État des transformateurs</h3>
+          <h3 class="mb-4 text-sm font-semibold text-slate-800">État des transformateurs</h3>
           <EtatsDonut
             :bon="stats.transformateurs_bon"
             :surveiller="stats.transformateurs_a_surveiller"
             :critique="stats.transformateurs_critiques"
           />
         </div>
-        <div v-if="stats.activite_mensuelle" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-sm font-semibold text-navy-900">Activité des 6 derniers mois</h3>
-          <ActiviteChart :activite="stats.activite_mensuelle" />
-        </div>
+        
+        <!-- Jauge Charge -->
         <div v-if="backendAJour" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-sm font-semibold text-navy-900">Taux de charge moyen</h3>
+          <h3 class="mb-4 text-sm font-semibold text-slate-800">Taux de charge moyen</h3>
           <ChargeGauge :taux="stats.taux_charge_moyen" />
+        </div>
+
+        <!-- Statuts Chart -->
+        <div v-if="backendAJour" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+          <h3 class="mb-4 text-sm font-semibold text-slate-800">Statut opérationnel</h3>
+          <StatutsChart :repartition="stats.repartition_statuts" />
         </div>
       </section>
 
-      <section v-if="backendAJour" class="grid grid-cols-1 gap-6 lg:grid-cols-3">
-        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-sm font-semibold text-navy-900">Statut opérationnel des postes actifs</h3>
-          <StatutsChart :repartition="stats.repartition_statuts" />
-        </div>
+      <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+        <!-- Répartition Priorités -->
         <div v-if="stats.repartition_priorites" class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-4 text-sm font-semibold text-navy-900">Répartition des priorités</h3>
+          <h3 class="mb-4 text-sm font-semibold text-slate-800">Répartition des priorités</h3>
           <RepartitionChart :repartition="stats.repartition_priorites" />
         </div>
-        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 class="mb-3 text-sm font-semibold text-navy-900">Synthèse par quartier</h3>
+        
+        <!-- Synthèse Secteurs -->
+        <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+          <h3 class="mb-3 text-sm font-semibold text-slate-800">Synthèse par quartier</h3>
           <SecteursTable :secteurs="stats.repartition_secteurs" />
         </div>
       </section>
 
+      <!-- Indicateurs détaillés -->
       <section>
-        <h3 class="mb-3 text-sm font-semibold text-navy-900">Indicateurs détaillés</h3>
+        <h3 class="mb-3 text-sm font-semibold text-slate-800">Indicateurs détaillés</h3>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             v-for="carte in cartes"
@@ -209,16 +259,16 @@ onMounted(() => {
             :tone="carte.tone"
           />
         </div>
-        <p class="mt-3 text-sm text-slate-500">
-          Coût des interventions terminées :
-          <span class="font-semibold text-navy-900">{{ formatMontant(stats.cout_total_interventions_terminees) }}</span>
+        <p class="mt-4 text-sm text-slate-500 bg-white p-3 rounded-lg border border-slate-200 inline-block">
+          Coût total des interventions terminées :
+          <span class="font-bold text-slate-800">{{ formatMontant(stats.cout_total_interventions_terminees) }}</span>
         </p>
       </section>
     </template>
 
-    <!-- Priorités (tous les rôles) -->
+    <!-- PRIORITÉS (Tous les rôles) -->
     <section class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
-      <h3 class="mb-3 text-sm font-semibold text-navy-900">Transformateurs à traiter en priorité</h3>
+      <h3 class="mb-3 text-sm font-semibold text-slate-800">Transformateurs à traiter en priorité</h3>
       <PrioritesTable :items="dashboard.priorities" />
     </section>
   </div>

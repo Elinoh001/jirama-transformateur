@@ -15,12 +15,15 @@ router = APIRouter(prefix="/interventions", tags=["Interventions"])
 def list_interventions(
     transformateur_id: int | None = Query(default=None, gt=0, description="Filtrer par transformateur"),
     statut: StatutIntervention | None = Query(default=None),
+    en_retard: bool | None = Query(
+        default=None, description="true = interventions planifiées dont la date est dépassée"
+    ),
     skip: int = Query(default=0, ge=0),
     limit: int = Query(default=500, ge=1, le=1000),
     db: Session = Depends(get_db),
     _: Utilisateur = Depends(require_authenticated),
 ) -> list[InterventionRead]:
-    return controller.list_interventions(db, transformateur_id, statut, skip, limit)
+    return controller.list_interventions(db, transformateur_id, statut, skip, limit, en_retard)
 
 
 @router.post("", response_model=InterventionRead, status_code=status.HTTP_201_CREATED)

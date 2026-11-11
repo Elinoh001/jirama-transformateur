@@ -55,7 +55,7 @@ function submit() {
     </div>
 
     <p v-if="form.gravite === 'CRITIQUE'" class="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-800">
-      Une panne critique met immédiatement le poste « en panne » sur la carte et sur sa fiche.
+      Une panne critique met immédiatement le poste « en panne » sur la carte et sur sa fiche. Toute autre panne active place le poste « en maintenance » : il ne repasse « en service » qu'une fois toutes ses pannes résolues.
     </p>
 
     <div>

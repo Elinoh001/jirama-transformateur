@@ -8,9 +8,10 @@ from app.config.referentiels import (
     normaliser_secteur,
     point_dans_zone,
 )
-from app.models.intervention import StatutIntervention
+from app.models.panne import GravitePanne
 from app.models.transformateur import EtatTransformateur, NiveauHuile
 from app.services.preventive_service import NiveauPriorite
+from app.services.statut_service import StatutOperationnel
 
 MSG_HORS_ZONE = "Coordonnées hors de la zone d'Antsirabe"
 
@@ -92,6 +93,7 @@ class TransformateurRead(BaseModel):
     date_installation: date | None
     etat: EtatTransformateur
     periodicite_inspection_mois: int
+    # Prochaine inspection PRÉVUE : date planifiée si elle existe, sinon échéance théorique
     prochaine_inspection: date | None
     latitude: float
     longitude: float
@@ -101,7 +103,15 @@ class TransformateurRead(BaseModel):
     # Suivi préventif (calculé automatiquement, jamais stocké en base)
     priorite: NiveauPriorite | None = None
     priorite_motifs: list[str] = Field(default_factory=list)
-    derniere_inspection: date | None = None
+    derniere_inspection: date | None = None  # dernière inspection réellement réalisée
+    echeance_theorique: date | None = None  # dernière réalisée + périodicité
+    prochaine_inspection_planifiee: date | None = None  # inspection planifiée la plus proche
+    inspection_en_retard: bool = False
+    jours_retard_inspection: int = 0
+    # Situation opérationnelle (calculée à partir des pannes, interventions et du dernier relevé)
+    statut_operationnel: StatutOperationnel | None = None
+    nb_pannes_actives: int = 0
+    taux_charge: float | None = None  # % du dernier relevé de charge, None si aucun relevé
 
 
 class PrioriteItem(BaseModel):
@@ -119,20 +129,35 @@ class PrioriteItem(BaseModel):
     motifs: list[str]
     derniere_inspection: date | None
     jours_depuis_derniere_inspection: int | None
+    jours_retard_inspection: int = 0
 
 
 class HistoriqueEvenement(BaseModel):
-    """Un événement de la chronologie : une inspection ou une intervention."""
+    """Un événement de la chronologie : inspection, intervention ou panne."""
 
-    evenement: Literal["INSPECTION", "INTERVENTION"]
+    evenement: Literal["INSPECTION", "INTERVENTION", "PANNE"]
     id: int
     date_evenement: date
     type: str
     resume: str | None = None
-    technicien: str
+    technicien: str  # pour une panne : la personne qui l'a signalée
     etat: EtatTransformateur | None = None  # inspections réalisées uniquement
-    statut: StatutIntervention | None = None  # interventions uniquement
+    statut: str | None = None  # statut de l'inspection, de l'intervention ou de la panne
+    gravite: GravitePanne | None = None  # pannes uniquement
     cout: float | None = None  # interventions uniquement
+
+
+class ProcheItem(BaseModel):
+    """Résultat d'une recherche par rayon (PostGIS ST_DWithin / ST_Distance)."""
+
+    transformateur_id: int
+    reference: str
+    nom: str
+    secteur: str
+    distance_m: float
+    latitude: float
+    longitude: float
+    statut_operationnel: StatutOperationnel
 
 
 class HistoriqueRead(BaseModel):

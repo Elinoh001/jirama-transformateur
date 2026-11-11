@@ -1,13 +1,11 @@
-from datetime import date
-
 from geoalchemy2.elements import WKTElement
-from sqlalchemy import func, or_, select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.models.inspection import Inspection, StatutInspection
 from app.models.transformateur import EtatTransformateur, Transformateur
 from app.schemas.transformateur import TransformateurCreate, TransformateurUpdate
-from app.utils.dates import ajouter_mois
+from app.services.echeance_inspection import synchroniser_prochaine_inspection
+from app.services.releve_service import recalculer_taux_transformateur
 
 SRID_WGS84 = 4326
 
@@ -22,18 +20,11 @@ def build_point(latitude: float, longitude: float) -> WKTElement:
 
 def recalculer_prochaine_inspection(db: Session, transformateur: Transformateur) -> None:
     """
-    prochaine échéance = dernière inspection RÉALISÉE + périodicité (en mois).
-    Sans inspection réalisée : aujourd'hui + périodicité.
-    Ne fait pas de commit : c'est à l'appelant de le faire.
+    Recalcule la prochaine inspection prévue : date de l'inspection planifiée si elle existe,
+    sinon échéance théorique (dernière inspection réalisée + périodicité).
+    Voir services/echeance_inspection.py. Ne fait pas de commit.
     """
-    derniere = db.scalar(
-        select(func.max(Inspection.date_inspection)).where(
-            Inspection.transformateur_id == transformateur.id,
-            Inspection.statut == StatutInspection.REALISEE,
-        )
-    )
-    base = derniere or date.today()
-    transformateur.prochaine_inspection = ajouter_mois(base, transformateur.periodicite_inspection_mois)
+    synchroniser_prochaine_inspection(db, transformateur)
 
 
 def get_by_id(db: Session, transformateur_id: int) -> Transformateur | None:
@@ -49,6 +40,7 @@ def list_transformateurs(
     search: str | None = None,
     etat: EtatTransformateur | None = None,
     actif: bool | None = None,
+    secteur: str | None = None,
     skip: int = 0,
     limit: int = 500,
 ) -> list[Transformateur]:
@@ -67,6 +59,8 @@ def list_transformateurs(
         stmt = stmt.where(Transformateur.etat == etat)
     if actif is not None:
         stmt = stmt.where(Transformateur.actif == actif)
+    if secteur:
+        stmt = stmt.where(Transformateur.secteur == secteur)
 
     stmt = stmt.offset(skip).limit(limit)
     return list(db.scalars(stmt).all())
@@ -108,6 +102,8 @@ def update_transformateur(
         nouvelle_periodicite is not None
         and nouvelle_periodicite != transformateur.periodicite_inspection_mois
     )
+    nouvelle_puissance = values.get("puissance")
+    puissance_changee = nouvelle_puissance is not None and nouvelle_puissance != transformateur.puissance
 
     for champ, valeur in values.items():
         if valeur is None and champ not in CHAMPS_NULLABLES:
@@ -119,6 +115,10 @@ def update_transformateur(
 
     if periodicite_changee:
         recalculer_prochaine_inspection(db, transformateur)
+
+    # La puissance nominale intervient dans le taux de charge : on met l'historique à jour.
+    if puissance_changee:
+        recalculer_taux_transformateur(transformateur)
 
     db.commit()
     db.refresh(transformateur)

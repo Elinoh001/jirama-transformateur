@@ -14,24 +14,24 @@ import {
 } from '@/utils/format'
 
 const props = defineProps({
-  // Objets transformateur (API) : id, reference, nom, secteur, puissance, etat, actif,
-  // latitude, longitude, statut_operationnel, taux_charge, priorite, prochaine_inspection
   markers: { type: Array, default: () => [] },
-  colorBy: { type: String, default: 'statut' }, // 'statut' | 'priorite'
-  zoom: { type: Number, default: 14 }, // zoom utilisé quand il n'y a qu'un seul marqueur
+  colorBy: { type: String, default: 'statut' },
+  zoom: { type: Number, default: 19 },
 })
 const emit = defineEmits(['open'])
 
 const CENTRE_ANTSIRABE = [-19.8659, 47.0333]
 const CLE_FOND = 'jirama_fond_carte'
 
-// Fonds de carte. Les attributions sont obligatoires : elles s'affichent en bas à droite.
 const FONDS = {
   plan: {
     label: 'Plan',
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     options: {
-      maxZoom: 19,
+      maxZoom: 20,
+      maxNativeZoom: 19,
+      detectRetina: true,
+      crossOrigin: true,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
     },
@@ -40,10 +40,16 @@ const FONDS = {
     label: 'Satellite',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     options: {
-      maxZoom: 19,
-      maxNativeZoom: 17,
+      maxZoom: 20,
+      // ✅ CORRECTION : On s'arrête au zoom 16, dernier niveau fiable pour Antsirabe sur Esri.
+      // Au-delà, Leaflet va étirer les tuiles du zoom 16 (rendu net grâce au CSS en bas).
+      maxNativeZoom: 16, 
+      detectRetina: true,
+      crossOrigin: true,
+      tileSize: 256,
+      zoomOffset: 0,
       attribution:
-        'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+        'Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community',
     },
   },
 }
@@ -68,8 +74,9 @@ const pleinEcran = ref(false)
 const pleinEcranDisponible = typeof document !== 'undefined' && !!document.fullscreenEnabled
 
 let map = null
-let layer = null // marqueurs
-let tuiles = null // fond de carte courant
+let layer = null
+let tuiles = null
+let tuilesFallback = null
 let nbErreurs = 0
 let derniereSignature = null
 let observer = null
@@ -93,7 +100,6 @@ function makeIcon(m) {
   })
 }
 
-// Le popup est construit en DOM (textContent) : aucune donnée n'est injectée comme HTML.
 function buildPopup(m) {
   const root = document.createElement('div')
   root.style.minWidth = '190px'
@@ -146,11 +152,7 @@ function draw() {
       .addTo(layer)
   }
 
-  // On ne recadre que si l'ensemble des postes affichés a changé (pas pour un simple changement de couleur).
-  const signature = props.markers
-    .map((m) => m.id)
-    .sort((a, b) => a - b)
-    .join(',')
+  const signature = props.markers.map((m) => m.id).sort((a, b) => a - b).join(',')
   if (signature !== derniereSignature) {
     derniereSignature = signature
     cadrer()
@@ -165,24 +167,37 @@ function installerFond() {
     tuiles.off()
     map.removeLayer(tuiles)
   }
+  if (tuilesFallback) {
+    tuilesFallback.off()
+    map.removeLayer(tuilesFallback)
+    tuilesFallback = null
+  }
+
   const f = FONDS[fond.value]
   nbErreurs = 0
   erreurTuiles.value = false
 
   tuiles = L.tileLayer(f.url, f.options)
-  tuiles.on('loading', () => {
-    chargement.value = true
-  })
-  tuiles.on('load', () => {
-    chargement.value = false
-  })
+  tuiles.on('loading', () => { chargement.value = true })
+  tuiles.on('load', () => { chargement.value = false })
   tuiles.on('tileload', () => {
     nbErreurs = 0
     erreurTuiles.value = false
   })
   tuiles.on('tileerror', () => {
     nbErreurs += 1
-    if (nbErreurs >= 4) erreurTuiles.value = true
+    if (nbErreurs >= 4) {
+      erreurTuiles.value = true
+      // Fallback automatique : ajoute le plan OSM en dessous si le satellite échoue
+      if (fond.value === 'satellite' && !tuilesFallback) {
+        tuilesFallback = L.tileLayer(
+          'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+          { maxZoom: 19, opacity: 0.6 }
+        )
+        tuilesFallback.addTo(map)
+        tuilesFallback.bringToBack()
+      }
+    }
   })
   tuiles.addTo(map)
 }
@@ -192,9 +207,7 @@ function choisirFond(cle) {
   fond.value = cle
   try {
     localStorage.setItem(CLE_FOND, cle)
-  } catch {
-    // préférence non mémorisée : sans conséquence
-  }
+  } catch {}
 }
 
 watch(fond, installerFond)
@@ -208,7 +221,12 @@ function basculerPleinEcran() {
 
 function surChangementPleinEcran() {
   pleinEcran.value = document.fullscreenElement === wrapper.value
-  nextTick(() => map && map.invalidateSize())
+  nextTick(() => {
+    if (map) {
+      map.invalidateSize()
+      setTimeout(() => map && map.invalidateSize(), 200)
+    }
+  })
 }
 
 const centreTexte = computed(() =>
@@ -220,12 +238,8 @@ async function copierCoordonnees() {
     await navigator.clipboard.writeText(centreTexte.value)
     copie.value = true
     clearTimeout(timerCopie)
-    timerCopie = setTimeout(() => {
-      copie.value = false
-    }, 1500)
-  } catch {
-    // presse-papiers indisponible : on ignore
-  }
+    timerCopie = setTimeout(() => { copie.value = false }, 1500)
+  } catch {}
 }
 
 const legende = computed(() => {
@@ -237,17 +251,20 @@ const legende = computed(() => {
 // ---------------------------------------------------------------- cycle de vie
 
 onMounted(() => {
-  map = L.map(container.value).setView(CENTRE_ANTSIRABE, 13)
+  map = L.map(container.value, {
+    preferCanvas: false,
+    zoomAnimation: true,
+    fadeAnimation: true,
+    markerZoomAnimation: true,
+  }).setView(CENTRE_ANTSIRABE, 13)
+
   layer = L.layerGroup().addTo(map)
-  map.on('moveend', () => {
-    centre.value = map.getCenter()
-  })
+  map.on('moveend', () => { centre.value = map.getCenter() })
 
   installerFond()
   draw()
   centre.value = map.getCenter()
 
-  // Recalcule la taille quand le conteneur change (menu, plein écran, rotation d'écran...).
   observer = new ResizeObserver(() => map && map.invalidateSize())
   observer.observe(wrapper.value)
   document.addEventListener('fullscreenchange', surChangementPleinEcran)
@@ -260,25 +277,18 @@ onBeforeUnmount(() => {
   clearTimeout(timerCopie)
   if (observer) observer.disconnect()
   if (tuiles) tuiles.off()
-  if (map) {
-    map.remove()
-    map = null
-  }
+  if (tuilesFallback) tuilesFallback.off()
+  if (map) { map.remove(); map = null }
 })
 </script>
 
 <template>
-  <!-- isolate : crée un contexte d'empilement, la carte reste sous la sidebar et les modales -->
   <div ref="wrapper" class="relative isolate h-full w-full overflow-hidden rounded-xl bg-slate-200">
-    <div ref="container" class="absolute inset-0 z-0"></div>
+    <div ref="container" class="absolute inset-0 z-0 map-sharp"></div>
 
     <!-- Fond de carte et commandes -->
     <div class="absolute right-3 top-3 z-[1000] flex flex-col items-end gap-2">
-      <div
-        class="flex overflow-hidden rounded-lg border border-slate-300 bg-white text-xs font-semibold shadow"
-        role="group"
-        aria-label="Fond de carte"
-      >
+      <div class="flex overflow-hidden rounded-lg border border-slate-300 bg-white text-xs font-semibold shadow" role="group" aria-label="Fond de carte">
         <button
           v-for="(f, cle) in FONDS"
           :key="cle"
@@ -316,10 +326,7 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Légende -->
-    <div
-      v-if="markers.length > 1"
-      class="absolute bottom-7 left-3 z-[1000] rounded-lg bg-white/90 px-3 py-2 text-xs shadow"
-    >
+    <div v-if="markers.length > 1" class="absolute bottom-7 left-3 z-[1000] rounded-lg bg-white/90 px-3 py-2 text-xs shadow">
       <p class="mb-1 font-semibold text-navy-900">{{ colorBy === 'priorite' ? 'Priorité' : 'Statut' }}</p>
       <p v-for="l in legende" :key="l.label" class="flex items-center gap-2 text-slate-700">
         <span class="inline-block h-3 w-3 rounded-full" :style="{ background: l.couleur }"></span>
@@ -328,44 +335,49 @@ onBeforeUnmount(() => {
     </div>
 
     <!-- Coordonnées du centre de la carte, copiables -->
-    <div
-      v-if="centre"
-      class="absolute bottom-7 right-3 z-[1000] flex items-center gap-2 rounded-md bg-white/90 px-2 py-1 font-mono text-xs text-slate-700 shadow"
-      title="Coordonnées du centre de la carte"
-    >
+    <div v-if="centre" class="absolute bottom-7 right-3 z-[1000] flex items-center gap-2 rounded-md bg-white/90 px-2 py-1 font-mono text-xs text-slate-700 shadow" title="Coordonnées du centre de la carte">
       <span>{{ centreTexte }}</span>
-      <button
-        type="button"
-        class="cursor-pointer rounded p-0.5 text-slate-500 hover:bg-slate-200"
-        aria-label="Copier les coordonnées"
-        @click="copierCoordonnees"
-      >
+      <button type="button" class="cursor-pointer rounded p-0.5 text-slate-500 hover:bg-slate-200" aria-label="Copier les coordonnées" @click="copierCoordonnees">
         <Check v-if="copie" class="h-3.5 w-3.5 text-green-600" />
         <Copy v-else class="h-3.5 w-3.5" />
       </button>
     </div>
 
     <!-- États du fond de carte -->
-    <div
-      v-if="erreurTuiles"
-      class="absolute left-1/2 top-3 z-[1000] w-[90%] max-w-md -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow"
-      role="alert"
-    >
-      Le fond de carte « {{ FONDS[fond].label }} » ne se charge pas (connexion ou service indisponible).
-      Les postes restent affichés.
-      <button
-        type="button"
-        class="ml-1 cursor-pointer font-semibold underline"
-        @click="choisirFond(fond === 'plan' ? 'satellite' : 'plan')"
-      >
+    <div v-if="erreurTuiles" class="absolute left-1/2 top-3 z-[1000] w-[90%] max-w-md -translate-x-1/2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-900 shadow" role="alert">
+      Le fond de carte « {{ FONDS[fond].label }} » ne se charge pas (connexion ou service indisponible). Les postes restent affichés.
+      <button type="button" class="ml-1 cursor-pointer font-semibold underline" @click="choisirFond(fond === 'plan' ? 'satellite' : 'plan')">
         Essayer l'autre fond
       </button>
     </div>
-    <div
-      v-else-if="chargement"
-      class="pointer-events-none absolute left-1/2 top-3 z-[1000] -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-600 shadow"
-    >
+    <div v-else-if="chargement" class="pointer-events-none absolute left-1/2 top-3 z-[1000] -translate-x-1/2 rounded-full bg-white/90 px-3 py-1 text-xs text-slate-600 shadow">
       Chargement de la carte...
     </div>
   </div>
 </template>
+
+<style>
+/* =========================================================================
+   CORRECTION DU FLOU : Force le navigateur à ne PAS lisser les images
+   de tuiles lors de l'upscale (quand on dépasse le maxNativeZoom).
+   ========================================================================= */
+.map-sharp .leaflet-tile {
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  image-rendering: pixelated;
+  -ms-interpolation-mode: nearest-neighbor;
+}
+
+/* Sur les tuiles "retina" (2x), on n'applique pas le pixelated car elles sont déjà haute résolution */
+.map-sharp .leaflet-tile.leaflet-tile-loaded[src*="2x"],
+.map-sharp .leaflet-tile.leaflet-tile-loaded[src*="@2x"] {
+  image-rendering: auto;
+  -ms-interpolation-mode: auto;
+}
+
+/* Empêche l'anti-aliasing forcé qui crée du flou sur les popups */
+.leaflet-popup-content {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+</style>

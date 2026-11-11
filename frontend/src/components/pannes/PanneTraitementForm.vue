@@ -79,8 +79,8 @@ function submit() {
     </div>
 
     <p v-if="resolution" class="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800">
-      Une panne résolue ne peut plus être modifiée. S'il ne reste aucune autre panne critique active, le poste
-      repasse « en service ».
+      Une panne résolue ne peut plus être modifiée. Le poste ne repasse « en service » que s'il ne reste aucune
+      autre panne active ni intervention en cours.
     </p>
 
     <p v-if="error" class="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ error }}</p>

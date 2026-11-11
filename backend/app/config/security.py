@@ -27,10 +27,12 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 def create_access_token(user_id: int, role: str) -> str:
     """Crée un JWT signé contenant l'id utilisateur (sub), son rôle et la date d'expiration."""
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    maintenant = datetime.now(timezone.utc)
+    expire = maintenant + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     payload: dict[str, Any] = {
         "sub": str(user_id),
         "role": role,
+        "iat": maintenant,
         "exp": expire,
     }
     return jwt.encode(payload, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -39,6 +41,12 @@ def create_access_token(user_id: int, role: str) -> str:
 def decode_access_token(token: str) -> dict[str, Any] | None:
     """Décode et valide un JWT. Retourne None si le token est invalide ou expiré."""
     try:
-        return jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        # "exp" et "sub" sont exigés : un token sans date d'expiration est refusé.
+        return jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=[settings.ALGORITHM],
+            options={"require": ["exp", "sub"]},
+        )
     except jwt.PyJWTError:
         return None

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.models.intervention import StatutIntervention
 
@@ -36,6 +36,26 @@ class InterventionCreate(BaseModel):
     def valider_type(cls, v: str) -> str:
         return _normaliser_type(v)
 
+    @model_validator(mode="after")
+    def valider_coherence(self) -> "InterventionCreate":
+        """
+        - PLANIFIEE : date aujourd'hui ou future.
+        - EN_COURS : intervention déjà commencée, date aujourd'hui ou passée.
+        - TERMINEE : date aujourd'hui ou passée, compte-rendu (description) obligatoire.
+        - ANNULEE : ne se choisit pas à la création.
+        """
+        aujourdhui = date.today()
+        if self.statut == StatutIntervention.ANNULEE:
+            raise ValueError("Une intervention ne peut pas être créée avec le statut ANNULEE")
+        if self.statut == StatutIntervention.PLANIFIEE and self.date_intervention < aujourdhui:
+            raise ValueError("Impossible de planifier une intervention à une date passée")
+        if self.statut in (StatutIntervention.EN_COURS, StatutIntervention.TERMINEE):
+            if self.date_intervention > aujourdhui:
+                raise ValueError("La date d'une intervention commencée ou terminée ne peut pas être dans le futur")
+        if self.statut == StatutIntervention.TERMINEE and not (self.description or "").strip():
+            raise ValueError("Le compte-rendu (description) est obligatoire pour une intervention terminée")
+        return self
+
 
 class InterventionUpdate(BaseModel):
     """Le transformateur d'une intervention ne peut pas être changé."""
@@ -67,3 +87,6 @@ class InterventionRead(BaseModel):
     statut: StatutIntervention
     technicien: str
     created_at: datetime
+    # Intervention planifiée dont la date est dépassée sans qu'elle ait démarré
+    en_retard: bool = False
+    jours_retard: int = 0
