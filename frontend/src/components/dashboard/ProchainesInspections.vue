@@ -2,6 +2,7 @@
 import { CalendarClock } from 'lucide-vue-next'
 
 import BadgePriorite from '@/components/common/BadgePriorite.vue'
+import BadgeTag from '@/components/common/BadgeTag.vue'
 import { formatDate } from '@/utils/format'
 
 defineProps({
@@ -49,9 +50,14 @@ function classeJours(jours) {
           <span class="min-w-0 flex-1">
             <span class="block truncate text-sm font-semibold text-navy-900">{{ i.reference }} · {{ i.nom }}</span>
             <span class="block text-xs text-slate-500">{{ formatDate(i.prochaine_inspection) }} · {{ i.secteur }}</span>
+            <span v-if="i.source === 'PLANIFIEE'" class="block text-xs text-blue-700">
+              Inspection planifiée · échéance théorique {{ formatDate(i.echeance_theorique) }}
+            </span>
+            <span v-else class="block text-xs text-slate-400">Échéance théorique (aucune inspection planifiée)</span>
           </span>
           <span class="flex flex-col items-end gap-1">
             <BadgePriorite :niveau="i.niveau" />
+            <BadgeTag v-if="i.en_retard" tone="red" label="En retard" />
             <span class="text-xs font-semibold" :class="classeJours(i.jours_restants)">
               {{ libelleJours(i.jours_restants) }}
             </span>
@@ -61,8 +67,8 @@ function classeJours(jours) {
     </ul>
 
     <p class="mt-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
-      Échéance = dernière inspection réalisée + périodicité du poste. Les inspections programmées se consultent
-      dans la page Inspections.
+      Prochaine inspection = inspection planifiée la plus proche, sinon dernière inspection réalisée + périodicité du
+      poste. Un retard de plus de 30 jours rend le poste prioritaire.
     </p>
   </div>
 </template>

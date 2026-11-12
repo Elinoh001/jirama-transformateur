@@ -55,8 +55,11 @@ const listeTransformateur = computed(() =>
     : [],
 )
 
-const echeanceDepassee = computed(
-  () => !!t.value?.prochaine_inspection && t.value.prochaine_inspection < todayISO(),
+// Retard calculé par le backend (échéance théorique dépassée ou inspection planifiée non réalisée).
+const echeanceDepassee = computed(() =>
+  t.value?.inspection_en_retard !== undefined
+    ? !!t.value.inspection_en_retard
+    : !!t.value?.prochaine_inspection && t.value.prochaine_inspection < todayISO(),
 )
 
 // Une fenêtre modale à la fois :
@@ -233,9 +236,20 @@ async function supprimer() {
               <dt class="text-slate-500">Prochaine inspection</dt>
               <dd class="text-right font-medium" :class="echeanceDepassee ? 'text-red-700' : ''">
                 {{ formatDate(t.prochaine_inspection) }}
-                <span v-if="echeanceDepassee" class="block text-xs font-normal">échéance dépassée</span>
+                <span v-if="echeanceDepassee" class="block text-xs font-normal">
+                  en retard de {{ t.jours_retard_inspection }} jour(s)
+                </span>
                 <span class="block text-xs font-normal text-slate-400">
-                  périodicité : {{ t.periodicite_inspection_mois }} mois
+                  {{ t.prochaine_inspection_planifiee ? 'inspection planifiée' : 'échéance théorique' }}
+                </span>
+              </dd>
+            </div>
+            <div class="flex justify-between gap-4">
+              <dt class="text-slate-500">Échéance théorique</dt>
+              <dd class="text-right font-medium">
+                {{ formatDate(t.echeance_theorique) }}
+                <span class="block text-xs font-normal text-slate-400">
+                  dernière réalisée + {{ t.periodicite_inspection_mois }} mois
                 </span>
               </dd>
             </div>

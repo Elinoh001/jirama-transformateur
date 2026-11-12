@@ -181,8 +181,7 @@ async function supprimer(t) {
         <thead class="border-b border-slate-200 bg-slate-50">
           <tr>
             <th :class="thClass">Référence</th>
-            <th :class="thClass">Nom</th>
-            <th :class="thClass">Quartier</th>
+            <th :class="thClass">Nom / quartier</th>
             <th :class="thClass">Puissance</th>
             <th :class="thClass">Statut</th>
             <th :class="thClass">Charge</th>
@@ -194,10 +193,10 @@ async function supprimer(t) {
         </thead>
         <tbody class="divide-y divide-slate-100">
           <tr v-if="store.loading && lignes.length === 0">
-            <td colspan="10" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
+            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
           </tr>
           <tr v-else-if="lignes.length === 0">
-            <td colspan="10" class="px-3 py-8 text-center text-slate-500">Aucun transformateur trouvé.</td>
+            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Aucun transformateur trouvé.</td>
           </tr>
           <tr v-for="t in lignes" :key="t.id" class="hover:bg-slate-50">
             <td class="whitespace-nowrap px-3 py-3 font-medium">
@@ -208,8 +207,10 @@ async function supprimer(t) {
                 Inactif
               </span>
             </td>
-            <td class="px-3 py-3">{{ t.nom }}</td>
-            <td class="whitespace-nowrap px-3 py-3 text-slate-600">{{ t.secteur }}</td>
+            <td class="px-3 py-3">
+              {{ t.nom }}
+              <span class="block text-xs text-slate-500">{{ t.secteur }}</span>
+            </td>
             <td class="whitespace-nowrap px-3 py-3">{{ t.puissance }} kVA</td>
             <td class="px-3 py-3"><BadgeStatutOperationnel :statut="t.statut_operationnel" /></td>
             <td class="px-3 py-3"><TauxCharge :taux="t.taux_charge" /></td>
@@ -217,7 +218,7 @@ async function supprimer(t) {
             <td class="px-3 py-3"><BadgePriorite :niveau="t.priorite" /></td>
             <td
               class="whitespace-nowrap px-3 py-3"
-              :class="t.actif && t.prochaine_inspection && t.prochaine_inspection < new Date().toISOString().slice(0, 10) ? 'font-semibold text-red-700' : 'text-slate-600'"
+              :class="t.actif && t.inspection_en_retard ? 'font-semibold text-red-700' : 'text-slate-600'"
             >
               {{ formatDate(t.prochaine_inspection) }}
             </td>

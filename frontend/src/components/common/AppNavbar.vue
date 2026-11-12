@@ -73,17 +73,17 @@ function handleClickOutside(event) {
       </button>
 
       <!-- Barre de recherche -->
-      <div class="relative w-full max-w-sm">
+      <div class="relative w-full max-w-[16rem] shrink">
         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
           type="text"
-          placeholder="Rechercher un transformateur..."
+          placeholder="Rechercher un poste..."
           class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
         />
       </div>
 
       <!-- Titre de la page (optionnel, sur écrans larges) -->
-      <h1 class="hidden truncate text-lg font-bold text-slate-800 xl:block">
+      <h1 class="hidden min-w-0 truncate text-lg font-bold text-slate-800 xl:block" :title="route.meta.title">
         {{ route.meta.title }}
       </h1>
     </div>
@@ -93,8 +93,8 @@ function handleClickOutside(event) {
       
       <!-- Horloge -->
       <div class="hidden items-center gap-3 rounded-lg border border-slate-200 px-3 py-1.5 text-xs lg:flex">
-        <span class="text-slate-600">{{ dateTexte }}</span>
-        <span class="border-l border-slate-200 pl-3 font-semibold text-slate-900">{{ heureTexte }}</span>
+        <span class="hidden text-slate-600 2xl:inline">{{ dateTexte }}</span>
+        <span class="font-semibold text-slate-900 2xl:border-l 2xl:border-slate-200 2xl:pl-3">{{ heureTexte }}</span>
       </div>
 
       <!-- Notifications -->

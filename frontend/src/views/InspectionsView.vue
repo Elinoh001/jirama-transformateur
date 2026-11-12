@@ -1,15 +1,24 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { Pencil, Plus } from 'lucide-vue-next'
+import { Eye, Pencil, Plus } from 'lucide-vue-next'
 
 import AppModal from '@/components/common/AppModal.vue'
 import BadgeEtat from '@/components/common/BadgeEtat.vue'
+import BadgeStatutInspection from '@/components/common/BadgeStatutInspection.vue'
+import BadgeTag from '@/components/common/BadgeTag.vue'
 import InspectionForm from '@/components/inspections/InspectionForm.vue'
 import inspectionService from '@/services/inspectionService'
 import { getErrorMessage } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useTransformateurStore } from '@/stores/transformateurStore'
-import { TYPE_INSPECTION_LABELS, formatDate, labelOf } from '@/utils/format'
+import {
+  ETAT_HUILE_LABELS,
+  STATUT_INSPECTION_LABELS,
+  TYPE_INSPECTION_LABELS,
+  formatDate,
+  joursEcoules,
+  labelOf,
+} from '@/utils/format'
 import { btnIcon, btnPrimary, cardClass, inputClass, thClass } from '@/utils/ui'
 
 const auth = useAuthStore()
@@ -20,6 +29,7 @@ const loading = ref(false)
 const error = ref('')
 
 const filtreTransformateur = ref('')
+const filtreStatut = ref('')
 const filtreEtat = ref('')
 
 const showForm = ref(false)
@@ -33,6 +43,7 @@ async function load() {
   try {
     const params = {}
     if (filtreTransformateur.value) params.transformateur_id = filtreTransformateur.value
+    if (filtreStatut.value) params.statut = filtreStatut.value
     if (filtreEtat.value) params.etat = filtreEtat.value
     inspections.value = await inspectionService.list(params)
   } catch (e) {
@@ -42,11 +53,22 @@ async function load() {
   }
 }
 
-watch([filtreTransformateur, filtreEtat], load)
+watch([filtreTransformateur, filtreStatut, filtreEtat], load)
 onMounted(() => {
   transformateurs.fetchAll()
   load()
 })
+
+// Inspection planifiée dont la date est passée sans avoir été réalisée.
+function joursRetard(i) {
+  return i.statut === 'PLANIFIEE' ? Math.max(0, joursEcoules(i.date_inspection)) : 0
+}
+
+function titreAction(i) {
+  if (i.statut === 'ANNULEE') return 'Consulter (archivée)'
+  if (i.statut === 'REALISEE') return "Compléter l'observation"
+  return 'Modifier ou reporter'
+}
 
 function ouvrirCreation() {
   editing.value = null
@@ -92,6 +114,13 @@ async function enregistrer(payload) {
         </select>
       </div>
       <div>
+        <label for="f-statut" class="mb-1 block text-xs font-medium text-slate-500">Statut</label>
+        <select id="f-statut" v-model="filtreStatut" :class="[inputClass, 'w-40']">
+          <option value="">Tous</option>
+          <option v-for="(label, value) in STATUT_INSPECTION_LABELS" :key="value" :value="value">{{ label }}</option>
+        </select>
+      </div>
+      <div>
         <label for="f-etat" class="mb-1 block text-xs font-medium text-slate-500">État constaté</label>
         <select id="f-etat" v-model="filtreEtat" :class="[inputClass, 'w-40']">
           <option value="">Tous</option>
@@ -113,8 +142,10 @@ async function enregistrer(payload) {
           <tr>
             <th :class="thClass">Date</th>
             <th :class="thClass">Transformateur</th>
-            <th :class="thClass">Type</th>
+            <th :class="thClass">Nature</th>
+            <th :class="thClass">Statut</th>
             <th :class="thClass">État</th>
+            <th :class="thClass">Huile</th>
             <th :class="thClass">Observation</th>
             <th :class="thClass">Technicien</th>
             <th v-if="auth.canWriteTerrain" :class="[thClass, 'text-right']">Actions</th>
@@ -122,13 +153,18 @@ async function enregistrer(payload) {
         </thead>
         <tbody class="divide-y divide-slate-100">
           <tr v-if="loading && inspections.length === 0">
-            <td colspan="7" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
+            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
           </tr>
           <tr v-else-if="inspections.length === 0">
-            <td colspan="7" class="px-3 py-8 text-center text-slate-500">Aucune inspection trouvée.</td>
+            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Aucune inspection trouvée.</td>
           </tr>
           <tr v-for="i in inspections" :key="i.id" class="align-top hover:bg-slate-50">
-            <td class="whitespace-nowrap px-3 py-3">{{ formatDate(i.date_inspection) }}</td>
+            <td class="whitespace-nowrap px-3 py-3">
+              {{ formatDate(i.date_inspection) }}
+              <span v-if="joursRetard(i) > 0" class="mt-1 block">
+                <BadgeTag tone="red" :label="`En retard de ${joursRetard(i)} j`" />
+              </span>
+            </td>
             <td class="px-3 py-3">
               <RouterLink :to="`/transformateurs/${i.transformateur_id}`" class="font-medium text-blue-600 hover:underline">
                 {{ i.transformateur_reference }}
@@ -136,12 +172,20 @@ async function enregistrer(payload) {
               <span class="block text-xs text-slate-500">{{ i.transformateur_nom }}</span>
             </td>
             <td class="px-3 py-3">{{ labelOf(TYPE_INSPECTION_LABELS, i.type) }}</td>
-            <td class="px-3 py-3"><BadgeEtat :etat="i.etat" /></td>
+            <td class="px-3 py-3"><BadgeStatutInspection :statut="i.statut" /></td>
+            <td class="px-3 py-3">
+              <BadgeEtat v-if="i.etat" :etat="i.etat" />
+              <span v-else class="text-slate-400">—</span>
+            </td>
+            <td class="whitespace-nowrap px-3 py-3 text-slate-600">
+              {{ i.etat_huile ? labelOf(ETAT_HUILE_LABELS, i.etat_huile) : '—' }}
+            </td>
             <td class="max-w-xs px-3 py-3 text-slate-600">{{ i.observation || '—' }}</td>
             <td class="whitespace-nowrap px-3 py-3">{{ i.technicien }}</td>
             <td v-if="auth.canWriteTerrain" class="whitespace-nowrap px-3 py-3 text-right">
-              <button type="button" :class="btnIcon" title="Modifier" @click="ouvrirEdition(i)">
-                <Pencil class="h-4 w-4" />
+              <button type="button" :class="btnIcon" :title="titreAction(i)" @click="ouvrirEdition(i)">
+                <Eye v-if="i.statut === 'ANNULEE'" class="h-4 w-4" />
+                <Pencil v-else class="h-4 w-4" />
               </button>
             </td>
           </tr>
@@ -153,7 +197,11 @@ async function enregistrer(payload) {
 
     <AppModal
       :open="showForm"
-      :title="editing ? `Modifier l'inspection du ${formatDate(editing.date_inspection)}` : 'Nouvelle inspection'"
+      :title="
+        editing
+          ? `${editing.statut === 'PLANIFIEE' ? 'Modifier' : 'Inspection'} du ${formatDate(editing.date_inspection)}`
+          : 'Nouvelle inspection'
+      "
       wide
       @close="showForm = false"
     >

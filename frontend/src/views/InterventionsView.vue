@@ -1,34 +1,28 @@
 <script setup>
 import { onMounted, ref, watch } from 'vue'
-import { Pencil, Plus } from 'lucide-vue-next'
+import { Eye, Pencil, Plus } from 'lucide-vue-next'
 
 import AppModal from '@/components/common/AppModal.vue'
-import BadgeEtat from '@/components/common/BadgeEtat.vue'
-import BadgeStatutInspection from '@/components/common/BadgeStatutInspection.vue'
-import InspectionForm from '@/components/inspections/InspectionForm.vue'
-import inspectionService from '@/services/inspectionService'
+import BadgeStatut from '@/components/common/BadgeStatut.vue'
+import BadgeTag from '@/components/common/BadgeTag.vue'
+import InterventionForm from '@/components/interventions/InterventionForm.vue'
+import interventionService from '@/services/interventionService'
 import { getErrorMessage } from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
 import { useTransformateurStore } from '@/stores/transformateurStore'
-import {
-  ETAT_HUILE_LABELS,
-  STATUT_INSPECTION_LABELS,
-  TYPE_INSPECTION_LABELS,
-  formatDate,
-  labelOf,
-} from '@/utils/format'
+import { STATUT_LABELS, TYPE_INTERVENTION_LABELS, formatDate, formatMontant, labelOf } from '@/utils/format'
 import { btnIcon, btnPrimary, cardClass, inputClass, thClass } from '@/utils/ui'
 
 const auth = useAuthStore()
 const transformateurs = useTransformateurStore()
 
-const inspections = ref([])
+const interventions = ref([])
 const loading = ref(false)
 const error = ref('')
 
 const filtreTransformateur = ref('')
 const filtreStatut = ref('')
-const filtreEtat = ref('')
+const filtreRetard = ref(false)
 
 const showForm = ref(false)
 const editing = ref(null)
@@ -42,20 +36,26 @@ async function load() {
     const params = {}
     if (filtreTransformateur.value) params.transformateur_id = filtreTransformateur.value
     if (filtreStatut.value) params.statut = filtreStatut.value
-    if (filtreEtat.value) params.etat = filtreEtat.value
-    inspections.value = await inspectionService.list(params)
+    if (filtreRetard.value) params.en_retard = true
+    interventions.value = await interventionService.list(params)
   } catch (e) {
-    error.value = getErrorMessage(e, 'Impossible de charger les inspections')
+    error.value = getErrorMessage(e, 'Impossible de charger les interventions')
   } finally {
     loading.value = false
   }
 }
 
-watch([filtreTransformateur, filtreStatut, filtreEtat], load)
+watch([filtreTransformateur, filtreStatut, filtreRetard], load)
 onMounted(() => {
   transformateurs.fetchAll()
   load()
 })
+
+function titreAction(iv) {
+  if (iv.statut === 'ANNULEE') return 'Consulter (archivée)'
+  if (iv.statut === 'TERMINEE') return 'Compléter le compte-rendu ou le coût'
+  return 'Modifier'
+}
 
 function ouvrirCreation() {
   editing.value = null
@@ -63,8 +63,8 @@ function ouvrirCreation() {
   showForm.value = true
 }
 
-function ouvrirEdition(inspection) {
-  editing.value = inspection
+function ouvrirEdition(intervention) {
+  editing.value = intervention
   formError.value = ''
   showForm.value = true
 }
@@ -74,14 +74,14 @@ async function enregistrer(payload) {
   formError.value = ''
   try {
     if (editing.value) {
-      await inspectionService.update(editing.value.id, payload)
+      await interventionService.update(editing.value.id, payload)
     } else {
-      await inspectionService.create(payload)
+      await interventionService.create(payload)
     }
     showForm.value = false
     await load()
   } catch (e) {
-    formError.value = getErrorMessage(e, "Impossible d'enregistrer l'inspection")
+    formError.value = getErrorMessage(e, "Impossible d'enregistrer l'intervention")
   } finally {
     saving.value = false
   }
@@ -104,20 +104,15 @@ async function enregistrer(payload) {
         <label for="f-statut" class="mb-1 block text-xs font-medium text-slate-500">Statut</label>
         <select id="f-statut" v-model="filtreStatut" :class="[inputClass, 'w-40']">
           <option value="">Tous</option>
-          <option v-for="(label, value) in STATUT_INSPECTION_LABELS" :key="value" :value="value">{{ label }}</option>
+          <option v-for="(label, value) in STATUT_LABELS" :key="value" :value="value">{{ label }}</option>
         </select>
       </div>
-      <div>
-        <label for="f-etat" class="mb-1 block text-xs font-medium text-slate-500">État constaté</label>
-        <select id="f-etat" v-model="filtreEtat" :class="[inputClass, 'w-40']">
-          <option value="">Tous</option>
-          <option value="BON">Bon</option>
-          <option value="A_SURVEILLER">À surveiller</option>
-          <option value="CRITIQUE">Critique</option>
-        </select>
-      </div>
+      <label class="flex cursor-pointer items-center gap-2 pb-2 text-sm text-slate-700">
+        <input v-model="filtreRetard" type="checkbox" class="h-4 w-4 rounded border-slate-300" />
+        En retard uniquement
+      </label>
       <button v-if="auth.canWriteTerrain" type="button" :class="[btnPrimary, 'ml-auto']" @click="ouvrirCreation">
-        <Plus class="h-4 w-4" /> Nouvelle inspection
+        <Plus class="h-4 w-4" /> Nouvelle intervention
       </button>
     </div>
 
@@ -129,44 +124,43 @@ async function enregistrer(payload) {
           <tr>
             <th :class="thClass">Date</th>
             <th :class="thClass">Transformateur</th>
-            <th :class="thClass">Nature</th>
+            <th :class="thClass">Type</th>
             <th :class="thClass">Statut</th>
-            <th :class="thClass">État</th>
-            <th :class="thClass">Huile</th>
-            <th :class="thClass">Observation</th>
+            <th :class="thClass">Coût</th>
+            <th :class="thClass">Description / compte-rendu</th>
             <th :class="thClass">Technicien</th>
             <th v-if="auth.canWriteTerrain" :class="[thClass, 'text-right']">Actions</th>
           </tr>
         </thead>
         <tbody class="divide-y divide-slate-100">
-          <tr v-if="loading && inspections.length === 0">
-            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
+          <tr v-if="loading && interventions.length === 0">
+            <td colspan="8" class="px-3 py-8 text-center text-slate-500">Chargement...</td>
           </tr>
-          <tr v-else-if="inspections.length === 0">
-            <td colspan="9" class="px-3 py-8 text-center text-slate-500">Aucune inspection trouvée.</td>
+          <tr v-else-if="interventions.length === 0">
+            <td colspan="8" class="px-3 py-8 text-center text-slate-500">Aucune intervention trouvée.</td>
           </tr>
-          <tr v-for="i in inspections" :key="i.id" class="align-top hover:bg-slate-50">
-            <td class="whitespace-nowrap px-3 py-3">{{ formatDate(i.date_inspection) }}</td>
+          <tr v-for="iv in interventions" :key="iv.id" class="align-top hover:bg-slate-50">
+            <td class="whitespace-nowrap px-3 py-3">{{ formatDate(iv.date_intervention) }}</td>
             <td class="px-3 py-3">
-              <RouterLink :to="`/transformateurs/${i.transformateur_id}`" class="font-medium text-blue-600 hover:underline">
-                {{ i.transformateur_reference }}
+              <RouterLink :to="`/transformateurs/${iv.transformateur_id}`" class="font-medium text-blue-600 hover:underline">
+                {{ iv.transformateur_reference }}
               </RouterLink>
-              <span class="block text-xs text-slate-500">{{ i.transformateur_nom }}</span>
+              <span class="block text-xs text-slate-500">{{ iv.transformateur_nom }}</span>
             </td>
-            <td class="px-3 py-3">{{ labelOf(TYPE_INSPECTION_LABELS, i.type) }}</td>
-            <td class="px-3 py-3"><BadgeStatutInspection :statut="i.statut" /></td>
+            <td class="px-3 py-3">{{ labelOf(TYPE_INTERVENTION_LABELS, iv.type) }}</td>
             <td class="px-3 py-3">
-              <BadgeEtat v-if="i.etat" :etat="i.etat" />
-              <span v-else class="text-slate-400">—</span>
+              <BadgeStatut :statut="iv.statut" />
+              <span v-if="iv.en_retard" class="mt-1 block">
+                <BadgeTag tone="red" :label="`En retard de ${iv.jours_retard} j`" />
+              </span>
             </td>
-            <td class="whitespace-nowrap px-3 py-3 text-slate-600">
-              {{ i.etat_huile ? labelOf(ETAT_HUILE_LABELS, i.etat_huile) : '—' }}
-            </td>
-            <td class="max-w-xs px-3 py-3 text-slate-600">{{ i.observation || '—' }}</td>
-            <td class="whitespace-nowrap px-3 py-3">{{ i.technicien }}</td>
+            <td class="whitespace-nowrap px-3 py-3">{{ iv.cout ? formatMontant(iv.cout) : '—' }}</td>
+            <td class="max-w-xs px-3 py-3 text-slate-600">{{ iv.description || '—' }}</td>
+            <td class="whitespace-nowrap px-3 py-3">{{ iv.technicien }}</td>
             <td v-if="auth.canWriteTerrain" class="whitespace-nowrap px-3 py-3 text-right">
-              <button type="button" :class="btnIcon" title="Modifier" @click="ouvrirEdition(i)">
-                <Pencil class="h-4 w-4" />
+              <button type="button" :class="btnIcon" :title="titreAction(iv)" @click="ouvrirEdition(iv)">
+                <Eye v-if="iv.statut === 'ANNULEE'" class="h-4 w-4" />
+                <Pencil v-else class="h-4 w-4" />
               </button>
             </td>
           </tr>
@@ -174,16 +168,16 @@ async function enregistrer(payload) {
       </table>
     </div>
 
-    <p class="text-xs text-slate-500">{{ inspections.length }} inspection(s)</p>
+    <p class="text-xs text-slate-500">{{ interventions.length }} intervention(s)</p>
 
     <AppModal
       :open="showForm"
-      :title="editing ? `Modifier l'inspection du ${formatDate(editing.date_inspection)}` : 'Nouvelle inspection'"
+      :title="editing ? `Intervention du ${formatDate(editing.date_intervention)}` : 'Nouvelle intervention'"
       wide
       @close="showForm = false"
     >
-      <InspectionForm
-        :inspection="editing"
+      <InterventionForm
+        :intervention="editing"
         :transformateurs="transformateurs.items"
         :saving="saving"
         :error="formError"

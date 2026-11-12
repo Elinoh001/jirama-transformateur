@@ -30,7 +30,9 @@ const FONDS = {
     options: {
       maxZoom: 20,
       maxNativeZoom: 19,
-      detectRetina: true,
+      // Pas de detectRetina : sur un écran à 125 %, 150 % ou 200 %, il affichait les tuiles à
+      // 128 px et rendait rues et noms de lieux deux fois plus petits.
+      tileSize: 256,
       crossOrigin: true,
       attribution:
         '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
@@ -40,11 +42,10 @@ const FONDS = {
     label: 'Satellite',
     url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
     options: {
-      maxZoom: 20,
+      maxZoom: 18,
       // ✅ CORRECTION : On s'arrête au zoom 16, dernier niveau fiable pour Antsirabe sur Esri.
       // Au-delà, Leaflet va étirer les tuiles du zoom 16 (rendu net grâce au CSS en bas).
-      maxNativeZoom: 16, 
-      detectRetina: true,
+      maxNativeZoom: 16,
       crossOrigin: true,
       tileSize: 256,
       zoomOffset: 0,
@@ -93,10 +94,10 @@ function makeIcon(m) {
   const opacite = m.actif === false ? 0.5 : 1
   return L.divIcon({
     className: 'jirama-marker',
-    html: `<span style="display:block;width:22px;height:22px;border-radius:9999px;background:${couleurDe(m)};border:3px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.6);opacity:${opacite}"></span>`,
-    iconSize: [22, 22],
-    iconAnchor: [11, 11],
-    popupAnchor: [0, -12],
+    html: `<span style="display:block;width:28px;height:28px;border-radius:9999px;background:${couleurDe(m)};border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.65);opacity:${opacite}"></span>`,
+    iconSize: [28, 28],
+    iconAnchor: [14, 14],
+    popupAnchor: [0, -16],
   })
 }
 
@@ -256,7 +257,9 @@ onMounted(() => {
     zoomAnimation: true,
     fadeAnimation: true,
     markerZoomAnimation: true,
+    zoomControl: false, // placé en bas à droite : en haut à gauche il passait sous la barre de recherche
   }).setView(CENTRE_ANTSIRABE, 13)
+  L.control.zoom({ position: 'bottomright', zoomInTitle: 'Zoom avant', zoomOutTitle: 'Zoom arrière' }).addTo(map)
 
   layer = L.layerGroup().addTo(map)
   map.on('moveend', () => { centre.value = map.getCenter() })
@@ -284,7 +287,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div ref="wrapper" class="relative isolate h-full w-full overflow-hidden rounded-xl bg-slate-200">
-    <div ref="container" class="absolute inset-0 z-0 map-sharp"></div>
+    <div ref="container" class="absolute inset-0 z-0" :class="{ 'map-sharp': fond === 'satellite' }"></div>
 
     <!-- Fond de carte et commandes -->
     <div class="absolute right-3 top-3 z-[1000] flex flex-col items-end gap-2">
@@ -373,6 +376,24 @@ onBeforeUnmount(() => {
 .map-sharp .leaflet-tile.leaflet-tile-loaded[src*="@2x"] {
   image-rendering: auto;
   -ms-interpolation-mode: auto;
+}
+
+/* Les boutons de zoom sont posés au-dessus du bloc de coordonnées (bas à droite) */
+.leaflet-bottom.leaflet-right .leaflet-control-zoom {
+  margin-right: 12px;
+  margin-bottom: 70px;
+}
+
+/* Boutons de zoom et fenêtre d'information plus grands */
+.leaflet-container .leaflet-bar a {
+  width: 38px;
+  height: 38px;
+  line-height: 38px;
+  font-size: 22px;
+}
+.leaflet-container .leaflet-popup-content {
+  font-size: 15px;
+  line-height: 1.35;
 }
 
 /* Empêche l'anti-aliasing forcé qui crée du flou sur les popups */

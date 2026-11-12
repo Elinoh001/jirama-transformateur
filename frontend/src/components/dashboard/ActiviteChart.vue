@@ -37,7 +37,7 @@ const data = computed(() => ({
 const options = {
   responsive: true,
   maintainAspectRatio: false,
-  plugins: { legend: { position: 'bottom' } },
+  plugins: { legend: { display: false } }, // la légende est dans l'en-tête de la carte
   scales: {
     y: { beginAtZero: true, ticks: { precision: 0 } },
   },
@@ -45,7 +45,7 @@ const options = {
 </script>
 
 <template>
-  <div class="h-64">
+  <div class="absolute inset-0">
     <Bar :data="data" :options="options" />
   </div>
 </template>

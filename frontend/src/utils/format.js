@@ -114,3 +114,12 @@ export function todayISO() {
   const jour = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${mois}-${jour}`
 }
+
+/** Nombre de jours entre une date AAAA-MM-JJ et aujourd'hui (positif = date passée). */
+export function joursEcoules(value) {
+  if (!value) return 0
+  const [a, m, j] = String(value).slice(0, 10).split('-').map(Number)
+  const d = new Date()
+  const aujourdhui = Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())
+  return Math.round((aujourdhui - Date.UTC(a, m - 1, j)) / 86_400_000)
+}

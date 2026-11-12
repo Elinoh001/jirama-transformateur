@@ -32,6 +32,9 @@ import { useDashboardStore } from '@/stores/dashboardStore'
 import { formatMontant, formatPourcent } from '@/utils/format'
 
 const auth = useAuthStore()
+
+// Date du jour affichée dans l'en-tête (elle était écrite en dur : 03/11/2025).
+const dateAujourdhui = new Date().toLocaleDateString('fr-FR')
 const dashboard = useDashboardStore()
 
 const stats = computed(() => dashboard.statistics)
@@ -134,7 +137,7 @@ onMounted(() => {
         </select>
         <div class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700">
           <CalendarClock class="h-4 w-4 text-slate-400" />
-          <span>03/11/2025</span>
+          <span>{{ dateAujourdhui }}</span>
         </div>
       </div>
     </header>
@@ -179,16 +182,16 @@ onMounted(() => {
     <section class="grid grid-cols-1 gap-6 lg:grid-cols-3">
       
       <!-- Graphique d'évolution (2/3) -->
-      <div class="rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
+      <div class="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2">
         <div class="mb-4 flex items-center justify-between">
-          <h3 class="text-base font-semibold text-slate-800">Évolution du réseau</h3>
-          <!-- Légende personnalisée -->
+          <h3 class="text-base font-semibold text-slate-800">Activité mensuelle</h3>
+          <!-- Légende : elle correspond aux séries réellement tracées (inspections / interventions) -->
           <div class="flex items-center gap-4 text-xs font-medium text-slate-600">
-            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-green-500"></div> Opérationnels</div>
-            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-red-500"></div> En panne</div>
+            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-blue-500"></div> Inspections</div>
+            <div class="flex items-center gap-1.5"><div class="h-2 w-2 rounded-full bg-amber-500"></div> Interventions</div>
           </div>
         </div>
-        <div class="h-64">
+        <div class="relative min-h-[16rem] flex-1">
           <!-- Si ActiviteChart n'est pas un LineChart, remplacez-le par votre composant Chart.js -->
           <ActiviteChart v-if="stats?.activite_mensuelle" :activite="stats.activite_mensuelle" />
           <div v-else class="flex h-full items-center justify-center text-sm text-slate-400">Aucune donnée disponible</div>
@@ -201,7 +204,9 @@ onMounted(() => {
           <h3 class="text-base font-semibold text-slate-800">Prochaines inspections</h3>
           <RouterLink to="/inspections" class="text-xs font-medium text-blue-600 hover:underline">Voir tout →</RouterLink>
         </div>
-        <ProchainesInspections :data="dashboard.upcoming" :loading="dashboard.loading" />
+        <div class="max-h-[28rem] overflow-y-auto pr-1">
+          <ProchainesInspections :data="dashboard.upcoming" :loading="dashboard.loading" />
+        </div>
       </div>
     </section>
 

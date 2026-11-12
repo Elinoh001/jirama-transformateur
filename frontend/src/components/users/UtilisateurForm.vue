@@ -66,9 +66,10 @@ function submit() {
         minlength="8"
         maxlength="72"
         autocomplete="new-password"
-        placeholder="8 caractères minimum"
+        placeholder="8 caractères minimum, avec une lettre et un chiffre"
         :class="inputClass"
       />
+      <p class="mt-1 text-xs text-slate-400">8 caractères minimum, avec au moins une lettre et un chiffre.</p>
     </div>
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">

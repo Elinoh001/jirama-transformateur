@@ -73,6 +73,12 @@ const routes = [
         meta: { title: 'Carte des transformateurs' },
       },
       {
+        path: 'profil',
+        name: 'profil',
+        component: () => import('@/views/ProfilView.vue'),
+        meta: { title: 'Mon profil' },
+      },
+      {
         path: 'utilisateurs',
         name: 'utilisateurs',
         component: () => import('@/views/UtilisateursView.vue'),
