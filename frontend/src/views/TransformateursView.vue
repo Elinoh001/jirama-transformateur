@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Eye, Pencil, Plus, Search, Trash2 } from 'lucide-vue-next'
+import { useRoute } from 'vue-router'
 
 import AppModal from '@/components/common/AppModal.vue'
 import BadgeEtat from '@/components/common/BadgeEtat.vue'
@@ -16,8 +17,10 @@ import { btnIcon, btnIconDanger, btnPrimary, cardClass, inputClass, thClass } fr
 
 const auth = useAuthStore()
 const store = useTransformateurStore()
+const route = useRoute()
 
-const search = ref('')
+// La recherche de la barre du haut arrive par l'adresse : /transformateurs?recherche=...
+const search = ref(typeof route.query.recherche === 'string' ? route.query.recherche : '')
 const secteur = ref('')
 const statutOp = ref('')
 const etat = ref('')
@@ -55,6 +58,12 @@ watch(search, () => {
   timer = setTimeout(load, 300)
 })
 watch([secteur, statutOp, etat, actif], load)
+watch(
+  () => route.query.recherche,
+  (valeur) => {
+    search.value = typeof valeur === 'string' ? valeur : ''
+  },
+)
 onBeforeUnmount(() => clearTimeout(timer))
 onMounted(() => {
   store.fetchSecteurs()

@@ -13,6 +13,13 @@ const dashboard = useDashboardStore()
 const route = useRoute()
 const router = useRouter()
 
+// Recherche rapide : Entrée ouvre la liste des transformateurs filtrée.
+const recherche = ref('')
+function lancerRecherche() {
+  const q = recherche.value.trim()
+  router.push({ path: '/transformateurs', query: q ? { recherche: q } : {} })
+}
+
 // Horloge du navigateur, mise à jour chaque minute.
 const maintenant = ref(new Date())
 let timer = null
@@ -76,8 +83,10 @@ function handleClickOutside(event) {
       <div class="relative w-full max-w-[16rem] shrink">
         <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
         <input
-          type="text"
+          v-model="recherche"
+          type="search"
           placeholder="Rechercher un poste..."
+          @keyup.enter="lancerRecherche"
           class="w-full rounded-lg border border-slate-200 bg-slate-50 py-2 pl-9 pr-4 text-sm text-slate-700 outline-none transition-colors focus:border-blue-500 focus:bg-white focus:ring-2 focus:ring-blue-100"
         />
       </div>
@@ -133,13 +142,6 @@ function handleClickOutside(event) {
             @click="showProfileMenu = false"
           >
             Mon profil
-          </RouterLink>
-          <RouterLink
-            to="/parametres"
-            class="block px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
-            @click="showProfileMenu = false"
-          >
-            Paramètres
           </RouterLink>
           <div class="my-1 border-t border-slate-100"></div>
           <button

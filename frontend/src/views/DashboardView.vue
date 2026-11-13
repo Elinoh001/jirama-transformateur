@@ -128,13 +128,8 @@ onMounted(() => {
         <p class="text-sm text-slate-500">Vue d'ensemble du réseau de distribution</p>
       </div>
       
-      <!-- Filtres (Design maquette) -->
+      <!-- Date du jour (le sélecteur de zone décoratif a été retiré : il ne filtrait rien) -->
       <div class="flex items-center gap-3">
-        <select class="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500">
-          <option>Antsirabe</option>
-          <option>Antsirabe Centre</option>
-          <option>Antsirabe Nord</option>
-        </select>
         <div class="flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700">
           <CalendarClock class="h-4 w-4 text-slate-400" />
           <span>{{ dateAujourdhui }}</span>
