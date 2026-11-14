@@ -40,7 +40,7 @@ onMounted(() => {
   <div class="relative h-[calc(100vh-4rem)] w-full overflow-hidden bg-slate-100">
     
     <!-- Barre de recherche et filtres flottants (Top) -->
-    <div class="absolute top-4 left-4 z-[1000] flex w-full max-w-xl flex-col gap-2">
+    <div class="absolute left-4 right-20 top-16 z-[1000] flex flex-col gap-2 sm:right-auto sm:top-4 sm:w-full sm:max-w-xl">
       <div class="flex items-center gap-2">
         <!-- Barre de recherche -->
         <div class="relative flex-1 shadow-md">
@@ -55,11 +55,11 @@ onMounted(() => {
         <!-- Bouton Filtres -->
         <button 
           @click="showFilters = !showFilters"
-          class="flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-4 shadow-md border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+          class="flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-3 shadow-md sm:px-4 border border-slate-200 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
           :class="{ 'bg-blue-50 text-blue-600 border-blue-200': showFilters }"
         >
           <SlidersHorizontal class="h-4 w-4" />
-          Filtres
+          <span class="hidden sm:inline">Filtres</span>
         </button>
       </div>
 
